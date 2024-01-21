@@ -1,106 +1,42 @@
-
-// Include the AccelStepper library:
 #include <AccelStepper.h>
 
-#include <QMC5883LCompass.h>  // Compas library
-
-#include <stdio.h>
-
-
-typedef struct {
-    double alpha;
-    double y_prev; // Variable statique pour stocker la sortie précédente
-} LowPassFilter;
-
-
-// Initialisation du filtre passe-bas
-void initLowPassFilter(LowPassFilter* filter, double alpha) {
-    filter->alpha = alpha;
-    filter->y_prev = 0.0;
-}
-
-
-// Filtrage passe-bas
-double lowPassFilter(LowPassFilter* filter, double x) {
-    double y = filter->alpha * x + (1 - filter->alpha) * filter->y_prev;
-    filter->y_prev = y;
-    return y;
-}
-
-
-
-
-// Define stepper motor connections and motor interface type. Motor interface type must be set to 1 when using a driver:
 #define dirPin 2
 #define stepPin 3
 #define motorInterfaceType 1
 
-// Create a new instance of the AccelStepper class:
+#define buttonCW 4  // Connect clockwise button to digital pin 4
+#define buttonCCW 5 // Connect counterclockwise button to digital pin 5
+#define potPin A0    // Connect potentiometer to analog pin A0
+
 AccelStepper stepper = AccelStepper(motorInterfaceType, stepPin, dirPin);
-
-QMC5883LCompass compass;
-double rtp; // rudder_target_position;
-
-LowPassFilter filter;
-
-
-
-
+int speed = 0; // Initial speed
 
 void setup() {
+  pinMode(buttonCW, INPUT_PULLUP);
+  pinMode(buttonCCW, INPUT_PULLUP);
 
-  // Compas 
-  Serial.begin(9600);
-  compass.init();
-  compass.setCalibrationOffsets(716.00, 571.00, -345.00);
-  compass.setCalibrationScales(1.08, 1.06, 0.89);
-
-  // Motor
-  // Set the maximum speed and acceleration:
-  stepper.setMaxSpeed(20000);
-  stepper.setAcceleration(10000);
-
-
-  
-  initLowPassFilter(&filter, 0.1); // Choisir une valeur appropriée pour alpha
+  stepper.setMaxSpeed(10000);
+  stepper.setAcceleration(10);
 }
 
 void loop() {
-
-  // Compas 
-  int a;
+  // Read the value from the potentiometer
+  int potValue = analogRead(potPin);
   
-  // Read compass values
-  compass.read();
+  // Map the potentiometer value to the speed range (adjust the values as needed)
+  speed = map(potValue, 0, 1023, 1000, 20000);
 
-  // Return Azimuth reading
-  a = compass.getAzimuth();
-  
-  //Serial.print("A: ");
-  //Serial.print(a);
-  //Serial.println();
+  // Check the state of the clockwise button
+  if (digitalRead(buttonCW) == LOW) {
+    stepper.setSpeed(speed);
+    stepper.move(1000); // Adjust the steps as needed
+    stepper.runSpeedToPosition();
+  }
 
-  rtp = 10000 * (a + 180);
-  Serial.print(rtp);
-  Serial.print("   ");
-  //double rtp2 = lowPassFilter(&filter, (double)rtp);
-  Serial.println(rtp);
-
-  stepper.moveTo(rtp);
-  stepper.runToPosition();
-
-  delay(1000);
-
-
-  
-
-
-
+  // Check the state of the counterclockwise button
+  if (digitalRead(buttonCCW) == LOW) {
+    stepper.setSpeed(-speed); // Negative speed for counterclockwise
+    stepper.move(-1000); // Adjust the steps as needed
+    stepper.runSpeedToPosition();
+  }
 }
-
-
-
-
-
-
-
